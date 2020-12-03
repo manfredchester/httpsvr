@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
+	"io"
 	"net/http"
+	"os/exec"
 	"time"
 )
 
@@ -27,4 +31,38 @@ func main() {
 		WriteTimeout: time.Duration(10) * time.Second,
 	}
 	svr.ListenAndServe()
+}
+func run(w http.ResponseWriter, r *http.Request) {
+	httpExec(w)
+}
+
+func httpExec(w http.ResponseWriter) {
+	w.Header().Set("Connection", "Keep-Alive")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	pr, pw := io.Pipe()
+	c := exec.Command("ping", "127.0.0.1", "-t")
+	c.Stdout = pw
+	c.Stderr = pw
+	err := c.Start()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	go func() {
+		c.Wait()
+		pw.Close()
+	}()
+	defer pr.Close()
+	s := bufio.NewScanner(pr)
+	for s.Scan() {
+		fmt.Fprintln(w, s.Text())
+		w.(http.Flusher).Flush()
+	}
+	err = s.Err()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

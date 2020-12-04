@@ -9,21 +9,26 @@ import (
 	"time"
 )
 
+type helloHandler struct{}
+
+func (h *helloHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("Hello, world!"))
+}
+
 func main() {
-	// val := `"key1":1}`
-	// _, e1 := GetConsulInfo("path0/config/inspect/path2")
-	// if e1 != nil {
-	// 	fmt.Println("写入consul。。。")
-	// 	e2 := WriteConsulInfo("path0/config/inspect/path2", val)
-	// 	fmt.Println("e2:", e2)
-	// } else {
-	// 	fmt.Println("consul已存在。。。")
-	// 	e3 := DelConsulInfo("/path0/config/inspect/path2")
-	// 	fmt.Println("e3:", e3)
-	// }
-	// mux := http.NewServeMux()
-	// mux.HandleFunc("/", home)
-	setupRoutes()
+	ser := "http"
+	switch ser {
+	case "http":
+		httpServer()
+	case "mux":
+		muxServer()
+	case "server":
+		server()
+	}
+}
+
+func server() {
+	http.HandleFunc("/run", run)
 	svr := http.Server{
 		Addr: ":9966",
 		// Handler:      mux,
@@ -32,11 +37,29 @@ func main() {
 	}
 	svr.ListenAndServe()
 }
-func run(w http.ResponseWriter, r *http.Request) {
-	httpExec(w)
+
+func muxServer() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", Home)
+	mux.HandleFunc("/run", run)
+	http.ListenAndServe(":9966", mux)
 }
 
-func httpExec(w http.ResponseWriter) {
+func httpServer() {
+	// Handle 对象结构需要实现ServeHTTP的方法
+	http.Handle("/hello", &helloHandler{})
+	// HandleFunc 中的对象HandleFunc实则是个适配器，最终还是会指向ServeHTTP
+	http.HandleFunc("/run", run)
+	// 文件服务器 或 负责重定向的RedirectHandler
+	// http.ListenAndServe(":9966", http.FileServer(http.Dir(".")))
+	http.ListenAndServe(":9966", nil)
+}
+
+func Home(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "TODO: handle requests\n")
+}
+
+func run(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "Keep-Alive")
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
